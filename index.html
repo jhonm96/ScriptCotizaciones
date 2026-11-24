@@ -55,6 +55,7 @@
   td { padding: 10px 0; border-bottom: 1px solid var(--line); vertical-align: top; }
   td.v { text-align: right; white-space: nowrap; padding-left: 12px; font-variant-numeric: tabular-nums; }
   small { display: block; color: var(--muted); font-size: .8rem; margin-top: 2px; }
+  tr.sub td { font-weight: 700; border-top: 2px solid var(--line); }
   tr.total td { border-bottom: 0; font-weight: 800; font-size: 1.2rem; padding-top: 14px; }
   .meta { color: var(--muted); margin: 0; font-size: .9rem; }
   [hidden] { display: none !important; }
@@ -142,7 +143,7 @@
 // =====================================================================
 const CONFIG = {
   espesorMaxMm: 1.5,        // espesor con el que se calcula la resina (mm)
-  margenResina: 0.10,       // 15% extra por desperdicio (0.10 = 10%)
+  margenResina: 0.10,       // 10% extra por desperdicio (0.15 = 15%)
   // Cada kit = 2 frascos iguales. El precio es POR KIT (los 2 frascos).
   kits: [
     { nombre: 'A - 2 frascos de 60 ml',          mlFrasco: 60,           precio: 17500 },
@@ -156,6 +157,10 @@ const CONFIG = {
   manoObraHora: 10000,
   extraDirectaHora: 5000,   // iluminación directa
   extraAmbasHora: 7000,     // directa + indirecta (indirecta sola no suma)
+  // --- Precio de venta ---
+  indirectosPct: 0.10,      // 10% sobre el costo (consumibles, energía, desperdicio, etc.)
+  gananciaPct: 0.30,        // 30% de ganancia sobre (costo + indirectos)
+  redondearA: 1000,         // el precio sugerido sube al múltiplo de 1.000 más cercano (pon 1 para no redondear)
 };
 
 // =====================================================================
@@ -206,6 +211,10 @@ function calcular(d) {
       area = d.base * d.altura; forma = 'Cuadrado / Rectángulo';
       formula = 'base × altura';
   }
+
+  const medidas = d.forma === 'circulo' ? num(d.diametro) + ' cm de diámetro'
+    : d.forma === 'triangulo' ? 'base ' + num(d.base) + ' × altura ' + num(d.altura) + ' cm'
+    : num(d.base) + ' × ' + num(d.altura) + ' cm';
 
   // 2. Resina: 1 cm² × 1 mm = 0,1 ml
   const volMax = area * C.espesorMaxMm / 10;
@@ -262,8 +271,15 @@ function calcular(d) {
 
   // Se redondea cada línea a pesos enteros, así el total siempre suma exacto lo que se ve.
   lineas.forEach(l => { l.v = Math.round(l.v); });
-  const total = lineas.reduce((s, l) => s + l.v, 0);
-  return { forma, area, formula, lineas, total };
+  const costo = lineas.reduce((s, l) => s + l.v, 0);
+
+  // 6. Precio de venta sugerido
+  const indirectos = Math.round(costo * C.indirectosPct);
+  const ganancia = Math.round((costo + indirectos) * C.gananciaPct);
+  const sinRedondeo = costo + indirectos + ganancia;
+  const precio = Math.ceil(sinRedondeo / C.redondearA) * C.redondearA;
+  const redondeo = precio - sinRedondeo;
+  return { forma, medidas, area, formula, lineas, costo, indirectos, ganancia, redondeo, precio };
 }
 
 // =====================================================================
@@ -309,42 +325,55 @@ function leerFormulario() {
   return d;
 }
 
-let ultimoTexto = '';
+let textoCliente = '', textoInterno = '';
 
 function mostrar(r) {
+  const C = CONFIG;
   let h = '<h2>Cotización</h2>' +
-    '<p class="meta">' + r.forma + ' · ' + num(r.area) + ' cm²<small>' + r.formula + '</small></p><table>';
+    '<p class="meta">' + r.forma + ' · ' + r.medidas + ' · ' + num(r.area) + ' cm²<small>' + r.formula + '</small></p><table>';
   r.lineas.forEach(l => {
     h += '<tr><td>' + l.c + (l.nota ? '<small>' + l.nota + '</small>' : '') +
          '</td><td class="v">' + cop(l.v) + '</td></tr>';
   });
-  h += '<tr class="total"><td>TOTAL DEL CUADRO</td><td class="v">' + cop(r.total) + '</td></tr></table>' +
-       '<button type="button" class="secondary" id="copiar">Copiar cotización</button>';
+  h += '<tr class="sub"><td>Costo total</td><td class="v">' + cop(r.costo) + '</td></tr>' +
+       '<tr><td>Indirectos (' + num(C.indirectosPct * 100) + '%)</td><td class="v">' + cop(r.indirectos) + '</td></tr>' +
+       '<tr><td>Ganancia (' + num(C.gananciaPct * 100) + '%)</td><td class="v">' + cop(r.ganancia) + '</td></tr>' +
+       (r.redondeo > 0 ? '<tr><td>Redondeo</td><td class="v">' + cop(r.redondeo) + '</td></tr>' : '') +
+       '<tr class="total"><td>PRECIO SUGERIDO</td><td class="v">' + cop(r.precio) + '</td></tr></table>' +
+       '<button type="button" class="secondary" id="copiarCliente">Copiar para el cliente</button>' +
+       '<button type="button" class="secondary" id="copiarInterno">Copiar desglose (interno)</button>';
   const res = $('res');
   res.innerHTML = h;
   res.hidden = false;
-  $('copiar').addEventListener('click', copiar);
 
-  ultimoTexto = 'COTIZACIÓN DE CUADRO\n' + r.forma + ' · ' + num(r.area) + ' cm²\n\n' +
+  // Para el cliente: solo forma, medidas y precio (sin costos ni ganancia)
+  textoCliente = 'COTIZACIÓN DE CUADRO\n' + r.forma + ' · ' + r.medidas + '\n\nPrecio: ' + cop(r.precio);
+  textoInterno = 'DESGLOSE (INTERNO)\n' + r.forma + ' · ' + r.medidas + ' · ' + num(r.area) + ' cm²\n\n' +
     r.lineas.map(l => '• ' + l.c + ': ' + cop(l.v)).join('\n') +
-    '\n\nTOTAL: ' + cop(r.total);
+    '\n\nCosto total: ' + cop(r.costo) +
+    '\nIndirectos: ' + cop(r.indirectos) +
+    '\nGanancia: ' + cop(r.ganancia) +
+    (r.redondeo > 0 ? '\nRedondeo: ' + cop(r.redondeo) : '') +
+    '\nPRECIO SUGERIDO: ' + cop(r.precio);
+  $('copiarCliente').addEventListener('click', e => copiar(textoCliente, e.currentTarget));
+  $('copiarInterno').addEventListener('click', e => copiar(textoInterno, e.currentTarget));
   res.scrollIntoView({ behavior: 'smooth', block: 'start' });
 }
 
-async function copiar() {
-  const btn = $('copiar');
+async function copiar(texto, btn) {
+  const original = btn.textContent;
   try {
-    await navigator.clipboard.writeText(ultimoTexto);
+    await navigator.clipboard.writeText(texto);
   } catch (e) {
     const ta = document.createElement('textarea');
-    ta.value = ultimoTexto;
+    ta.value = texto;
     document.body.appendChild(ta);
     ta.select();
     try { document.execCommand('copy'); } catch (e2) {}
     ta.remove();
   }
   btn.textContent = '¡Copiado!';
-  setTimeout(() => { btn.textContent = 'Copiar cotización'; }, 1800);
+  setTimeout(() => { btn.textContent = original; }, 1800);
 }
 
 $('forma').addEventListener('change', actualizarCampos);
