@@ -1,0 +1,365 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="theme-color" content="#1f3a5f">
+<title>Cotizador de cuadros</title>
+<style>
+  :root {
+    --bg: #f4f5f7; --card: #ffffff; --text: #1b1f27; --muted: #5d6675;
+    --line: #dfe3ea; --accent: #1f3a5f; --accent-text: #ffffff; --error: #b3261e;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #12151a; --card: #1b2028; --text: #eceff4; --muted: #9aa5b5;
+      --line: #2e3643; --accent: #5b8fd6; --accent-text: #0b1220; --error: #ff8a80;
+    }
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; background: var(--bg); color: var(--text);
+    font: 16px/1.45 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  }
+  main { max-width: 520px; margin: 0 auto; padding: 16px; }
+  h1 { font-size: 1.4rem; margin: 8px 0 16px; }
+  h2 { font-size: 1.15rem; margin: 0 0 4px; }
+  .card {
+    background: var(--card); border: 1px solid var(--line);
+    border-radius: 14px; padding: 16px; margin-bottom: 16px;
+  }
+  label { display: block; font-weight: 600; font-size: .92rem; margin: 14px 0 6px; }
+  label:first-child { margin-top: 0; }
+  input, select {
+    width: 100%; padding: 12px; font-size: 16px; /* 16px evita el zoom en iPhone */
+    border: 1px solid var(--line); border-radius: 10px;
+    background: var(--bg); color: var(--text);
+  }
+  .row { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+  .hint { color: var(--muted); font-size: .82rem; margin-top: 4px; }
+  .section-title {
+    font-size: .8rem; letter-spacing: .06em; text-transform: uppercase;
+    color: var(--muted); margin: 0 0 4px;
+  }
+  button {
+    width: 100%; padding: 14px; font-size: 1rem; font-weight: 700;
+    border: 0; border-radius: 12px; cursor: pointer;
+    background: var(--accent); color: var(--accent-text);
+  }
+  button.secondary {
+    background: transparent; color: var(--accent);
+    border: 1.5px solid var(--accent); margin-top: 10px;
+  }
+  .error { color: var(--error); font-weight: 600; margin: 12px 0 0; min-height: 1.2em; }
+  table { width: 100%; border-collapse: collapse; margin-top: 10px; }
+  td { padding: 10px 0; border-bottom: 1px solid var(--line); vertical-align: top; }
+  td.v { text-align: right; white-space: nowrap; padding-left: 12px; font-variant-numeric: tabular-nums; }
+  small { display: block; color: var(--muted); font-size: .8rem; margin-top: 2px; }
+  tr.total td { border-bottom: 0; font-weight: 800; font-size: 1.2rem; padding-top: 14px; }
+  .meta { color: var(--muted); margin: 0; font-size: .9rem; }
+  [hidden] { display: none !important; }
+</style>
+</head>
+<body>
+<main>
+  <h1>Cotizador de cuadros</h1>
+
+  <form id="f" class="card" novalidate>
+    <p class="section-title">Cuadro</p>
+    <label for="forma">Forma</label>
+    <select id="forma">
+      <option value="circulo">Círculo</option>
+      <option value="triangulo">Triángulo</option>
+      <option value="rectangulo" selected>Cuadrado / Rectángulo</option>
+      <option value="irregular">Irregular</option>
+    </select>
+
+    <div id="grpDiametro" hidden>
+      <label for="diametro">Diámetro (cm)</label>
+      <input id="diametro" inputmode="decimal" placeholder="Ej: 30">
+    </div>
+
+    <div id="grpMedidas">
+      <div class="row">
+        <div>
+          <label for="base">Base (cm)</label>
+          <input id="base" inputmode="decimal" placeholder="Ej: 40">
+        </div>
+        <div>
+          <label for="altura">Altura (cm)</label>
+          <input id="altura" inputmode="decimal" placeholder="Ej: 50">
+        </div>
+      </div>
+      <p class="hint" id="hintIrregular" hidden>Para figuras irregulares, usa la base y la altura del recuadro que las contiene.</p>
+    </div>
+
+    <p class="section-title" style="margin-top:22px">Luces</p>
+    <label for="luces">¿Lleva luces?</label>
+    <select id="luces">
+      <option value="no" selected>No</option>
+      <option value="si">Sí</option>
+    </select>
+
+    <div id="grpLuces" hidden>
+      <label for="metros">Metros de luz</label>
+      <input id="metros" inputmode="decimal" placeholder="Ej: 2,5">
+      <div class="row">
+        <div>
+          <label for="fuente">Fuente de energía</label>
+          <select id="fuente">
+            <option value="1">1 A</option>
+            <option value="5">5 A</option>
+          </select>
+        </div>
+        <div>
+          <label for="tipoLuz">Iluminación</label>
+          <select id="tipoLuz">
+            <option value="directa">Directa</option>
+            <option value="indirecta">Indirecta</option>
+            <option value="ambas">Ambas</option>
+          </select>
+        </div>
+      </div>
+    </div>
+
+    <p class="section-title" style="margin-top:22px">Costos y trabajo</p>
+    <label for="corte">Corte de la madera y calca (COP)</label>
+    <input id="corte" inputmode="numeric" placeholder="Ej: 150.000">
+
+    <label for="horas">Horas de trabajo</label>
+    <input id="horas" inputmode="decimal" placeholder="Ej: 6">
+
+    <p class="error" id="error" role="alert"></p>
+    <button type="submit">Cotizar</button>
+  </form>
+
+  <section id="res" class="card" hidden></section>
+</main>
+
+<script>
+// =====================================================================
+//  PARÁMETROS — edita aquí los precios y valores
+// =====================================================================
+const CONFIG = {
+  espesorMaxMm: 1.5,        // espesor con el que se calcula la resina (mm)
+  margenResina: 0.15,       // 15% extra por desperdicio (0.10 = 10%)
+  // Cada kit = 2 frascos iguales. El precio es POR KIT (los 2 frascos).
+  kits: [
+    { nombre: 'A - 2 frascos de 60 ml',          mlFrasco: 60,           precio: 17500 },
+    { nombre: 'B - 2 frascos de 120 ml',         mlFrasco: 120,          precio: 33900 },
+    { nombre: 'C - 2 frascos de 1/8 de galón',   mlFrasco: 3785.41 / 8,  precio: 109800 },
+  ],
+  precioMetroLuz: 5135,
+  conectores: 1500,
+  fuente1A: 8000,
+  fuente5A: 25000,
+  manoObraHora: 10000,
+  extraDirectaHora: 5000,   // iluminación directa
+  extraAmbasHora: 7000,     // directa + indirecta (indirecta sola no suma)
+};
+
+// =====================================================================
+//  Utilidades
+// =====================================================================
+const agrupar = s => s.replace(/\B(?=(\d{3})+(?!\d))/g, '.');
+const cop = v => '$' + agrupar(String(Math.round(v)));
+function num(v) {
+  const t = (Math.round(v * 100) / 100).toFixed(2).replace(/\.?0+$/, '');
+  const [ent, dec] = t.split('.');
+  return agrupar(ent) + (dec ? ',' + dec : '');
+}
+function aNumero(s) {              // acepta 1.5 o 1,5
+  const t = String(s).trim().replace(',', '.');
+  if (!t) return NaN;
+  const v = Number(t);
+  return Number.isFinite(v) ? v : NaN;
+}
+function aPesos(s) {               // ignora puntos, comas y símbolos: toma solo los dígitos
+  const d = String(s).replace(/\D/g, '');
+  return d ? parseInt(d, 10) : NaN;
+}
+
+// =====================================================================
+//  Cálculo
+// =====================================================================
+function calcular(d) {
+  const C = CONFIG;
+
+  // 1. Área (cm²)
+  let area, forma, formula;
+  switch (d.forma) {
+    case 'circulo': {
+      const r = d.diametro / 2;
+      area = Math.PI * r * r; forma = 'Círculo';
+      formula = 'π × radio², radio = ' + num(r) + ' cm';
+      break;
+    }
+    case 'triangulo':
+      area = d.base * d.altura / 2; forma = 'Triángulo';
+      formula = '(base × altura) / 2';
+      break;
+    case 'irregular':
+      area = d.base * d.altura; forma = 'Irregular';
+      formula = 'base × altura';
+      break;
+    default:
+      area = d.base * d.altura; forma = 'Cuadrado / Rectángulo';
+      formula = 'base × altura';
+  }
+
+  // 2. Resina: 1 cm² × 1 mm = 0,1 ml
+  const volMax = area * C.espesorMaxMm / 10;
+  const necesarios = volMax * (1 + C.margenResina);
+
+  // Combinación de kits (se pueden mezclar) más barata que cubra lo necesario.
+  // Empate de precio: gana la que deja menos sobrante.
+  const K = C.kits.map(k => ({ ...k, ml: k.mlFrasco * 2 }));
+  const max = K.map(k => Math.max(1, Math.ceil(necesarios / k.ml - 1e-9)));
+  let mejor = null;
+  (function buscar(i, n, ml, costo) {
+    if (i === K.length) {
+      if (ml >= necesarios - 1e-9 &&
+          (!mejor || costo < mejor.costo || (costo === mejor.costo && ml < mejor.ml))) {
+        mejor = { n: n.slice(), ml, costo };
+      }
+      return;
+    }
+    for (let c = 0; c <= max[i]; c++) {
+      n[i] = c;
+      buscar(i + 1, n, ml + c * K[i].ml, costo + c * K[i].precio);
+    }
+  })(0, [], 0, 0);
+
+  const lineas = [];
+  const idxResina = [];
+  K.forEach((k, i) => {
+    if (mejor.n[i] > 0) {
+      idxResina.push(lineas.length);
+      lineas.push({ c: 'Resina · ' + mejor.n[i] + ' × ' + k.nombre, v: mejor.n[i] * k.precio });
+    }
+  });
+  lineas[idxResina[idxResina.length - 1]].nota =
+    'Necesita ' + num(necesarios) + ' ml (' + num(volMax) + ' ml a ' + num(C.espesorMaxMm) +
+    ' mm + ' + num(C.margenResina * 100) + '% de margen). Compra ' + num(mejor.ml) + ' ml.';
+
+  // 3. Luces
+  let tarifa = C.manoObraHora;
+  let notaMano = 'Sin luces';
+  if (d.luces) {
+    lineas.push({ c: 'Luces · ' + num(d.metros) + ' m × ' + cop(C.precioMetroLuz), v: d.metros * C.precioMetroLuz });
+    lineas.push({ c: 'Conectores', v: C.conectores });
+    lineas.push({ c: 'Fuente de energía ' + d.fuente + ' A', v: d.fuente === 1 ? C.fuente1A : C.fuente5A });
+    if (d.tipoLuz === 'directa')  { tarifa += C.extraDirectaHora; notaMano = 'Iluminación directa'; }
+    if (d.tipoLuz === 'ambas')    { tarifa += C.extraAmbasHora;   notaMano = 'Iluminación directa + indirecta'; }
+    if (d.tipoLuz === 'indirecta') { notaMano = 'Iluminación indirecta'; }
+  }
+
+  // 4. Corte y calca
+  lineas.push({ c: 'Corte de madera y calca', v: d.corte });
+
+  // 5. Mano de obra
+  lineas.push({ c: 'Mano de obra · ' + num(d.horas) + ' h × ' + cop(tarifa), v: d.horas * tarifa, nota: notaMano });
+
+  // Se redondea cada línea a pesos enteros, así el total siempre suma exacto lo que se ve.
+  lineas.forEach(l => { l.v = Math.round(l.v); });
+  const total = lineas.reduce((s, l) => s + l.v, 0);
+  return { forma, area, formula, lineas, total };
+}
+
+// =====================================================================
+//  Interfaz
+// =====================================================================
+const $ = id => document.getElementById(id);
+
+function actualizarCampos() {
+  const f = $('forma').value;
+  $('grpDiametro').hidden = f !== 'circulo';
+  $('grpMedidas').hidden = f === 'circulo';
+  $('hintIrregular').hidden = f !== 'irregular';
+  $('grpLuces').hidden = $('luces').value !== 'si';
+}
+
+function leerFormulario() {
+  const forma = $('forma').value;
+  const d = { forma };
+  const medidaOk = v => Number.isFinite(v) && v > 0 && v <= 10000;
+
+  if (forma === 'circulo') {
+    d.diametro = aNumero($('diametro').value);
+    if (!medidaOk(d.diametro)) throw new Error('Escribe un diámetro válido (en cm).');
+  } else {
+    d.base = aNumero($('base').value);
+    d.altura = aNumero($('altura').value);
+    if (!medidaOk(d.base) || !medidaOk(d.altura)) throw new Error('Escribe la base y la altura válidas (en cm).');
+  }
+
+  d.luces = $('luces').value === 'si';
+  if (d.luces) {
+    d.metros = aNumero($('metros').value);
+    if (!(d.metros > 0 && d.metros <= 1000)) throw new Error('Escribe cuántos metros de luz necesita.');
+    d.fuente = parseInt($('fuente').value, 10);
+    d.tipoLuz = $('tipoLuz').value;
+  }
+
+  d.corte = aPesos($('corte').value);
+  if (!Number.isFinite(d.corte)) throw new Error('Escribe el costo del corte de la madera y la calca.');
+
+  d.horas = aNumero($('horas').value);
+  if (!(d.horas >= 0 && d.horas <= 1000)) throw new Error('Escribe las horas de trabajo.');
+  return d;
+}
+
+let ultimoTexto = '';
+
+function mostrar(r) {
+  let h = '<h2>Cotización</h2>' +
+    '<p class="meta">' + r.forma + ' · ' + num(r.area) + ' cm²<small>' + r.formula + '</small></p><table>';
+  r.lineas.forEach(l => {
+    h += '<tr><td>' + l.c + (l.nota ? '<small>' + l.nota + '</small>' : '') +
+         '</td><td class="v">' + cop(l.v) + '</td></tr>';
+  });
+  h += '<tr class="total"><td>TOTAL DEL CUADRO</td><td class="v">' + cop(r.total) + '</td></tr></table>' +
+       '<button type="button" class="secondary" id="copiar">Copiar cotización</button>';
+  const res = $('res');
+  res.innerHTML = h;
+  res.hidden = false;
+  $('copiar').addEventListener('click', copiar);
+
+  ultimoTexto = 'COTIZACIÓN DE CUADRO\n' + r.forma + ' · ' + num(r.area) + ' cm²\n\n' +
+    r.lineas.map(l => '• ' + l.c + ': ' + cop(l.v)).join('\n') +
+    '\n\nTOTAL: ' + cop(r.total);
+  res.scrollIntoView({ behavior: 'smooth', block: 'start' });
+}
+
+async function copiar() {
+  const btn = $('copiar');
+  try {
+    await navigator.clipboard.writeText(ultimoTexto);
+  } catch (e) {
+    const ta = document.createElement('textarea');
+    ta.value = ultimoTexto;
+    document.body.appendChild(ta);
+    ta.select();
+    try { document.execCommand('copy'); } catch (e2) {}
+    ta.remove();
+  }
+  btn.textContent = '¡Copiado!';
+  setTimeout(() => { btn.textContent = 'Copiar cotización'; }, 1800);
+}
+
+$('forma').addEventListener('change', actualizarCampos);
+$('luces').addEventListener('change', actualizarCampos);
+$('f').addEventListener('submit', e => {
+  e.preventDefault();
+  $('error').textContent = '';
+  try {
+    mostrar(calcular(leerFormulario()));
+  } catch (err) {
+    $('error').textContent = err.message;
+    $('res').hidden = true;
+  }
+});
+actualizarCampos();
+</script>
+</body>
+</html>
