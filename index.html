@@ -123,10 +123,19 @@
       </div>
     </div>
 
-    <p class="section-title" style="margin-top:22px">Costos y trabajo</p>
-    <label for="corte">Corte de la madera y calca (COP)</label>
-    <input id="corte" inputmode="numeric" placeholder="Ej: 150.000">
+    <p class="section-title" style="margin-top:22px">Corte láser</p>
+    <label for="laser">¿Lleva corte láser?</label>
+    <select id="laser">
+      <option value="no" selected>No</option>
+      <option value="si">Sí</option>
+    </select>
 
+    <div id="grpLaser" hidden>
+      <label for="valorLaser">Valor del corte láser (COP)</label>
+      <input id="valorLaser" inputmode="numeric" placeholder="Ej: 5.000">
+    </div>
+
+    <p class="section-title" style="margin-top:22px">Trabajo</p>
     <label for="horas">Horas de trabajo</label>
     <input id="horas" inputmode="decimal" placeholder="Ej: 6">
 
@@ -157,6 +166,9 @@ const CONFIG = {
   manoObraHora: 10000,
   extraDirectaHora: 5000,   // iluminación directa
   extraAmbasHora: 7000,     // directa + indirecta (indirecta sola no suma)
+  // --- Madera e imagen (calca): precio por cm² ---
+  precioCm2Madera: 20,
+  precioCm2Imagen: 4.5,
   // --- Precio de venta ---
   indirectosPct: 0.10,      // 10% sobre el costo (consumibles, energía, desperdicio, etc.)
   gananciaPct: 0.30,        // 30% de ganancia sobre (costo + indirectos)
@@ -179,6 +191,7 @@ function aNumero(s) {              // acepta 1.5 o 1,5
   const v = Number(t);
   return Number.isFinite(v) ? v : NaN;
 }
+
 function aPesos(s) {               // ignora puntos, comas y símbolos: toma solo los dígitos
   const d = String(s).replace(/\D/g, '');
   return d ? parseInt(d, 10) : NaN;
@@ -215,6 +228,8 @@ function calcular(d) {
   const medidas = d.forma === 'circulo' ? num(d.diametro) + ' cm de diámetro'
     : d.forma === 'triangulo' ? 'base ' + num(d.base) + ' × altura ' + num(d.altura) + ' cm'
     : num(d.base) + ' × ' + num(d.altura) + ' cm';
+
+  const recuadro = d.forma === 'circulo' ? d.diametro * d.diametro : d.base * d.altura;
 
   // 2. Resina: 1 cm² × 1 mm = 0,1 ml
   const volMax = area * C.espesorMaxMm / 10;
@@ -263,8 +278,15 @@ function calcular(d) {
     if (d.tipoLuz === 'indirecta') { notaMano = 'Iluminación indirecta'; }
   }
 
-  // 4. Corte y calca
-  lineas.push({ c: 'Corte de madera y calca', v: d.corte });
+  // 4. Madera e imagen (calca), por cm²
+  // Círculo e irregular: se cobran sobre el área completa (recuadro).
+  // Cuadrado y triángulo: sobre el área de la figura.
+  const curva = d.forma === 'circulo' || d.forma === 'irregular';
+  const cm2 = curva ? recuadro : area;
+  lineas.push({ c: 'Madera · ' + num(cm2) + ' cm² × $' + num(C.precioCm2Madera), v: cm2 * C.precioCm2Madera,
+                nota: curva ? 'Sobre el área completa (recuadro)' : 'Sobre el área de la figura' });
+  lineas.push({ c: 'Imagen (calca) · ' + num(cm2) + ' cm² × $' + num(C.precioCm2Imagen), v: cm2 * C.precioCm2Imagen });
+  if (d.laser) lineas.push({ c: 'Corte láser', v: d.valorLaser });
 
   // 5. Mano de obra
   lineas.push({ c: 'Mano de obra · ' + num(d.horas) + ' h × ' + cop(tarifa), v: d.horas * tarifa, nota: notaMano });
@@ -293,6 +315,7 @@ function actualizarCampos() {
   $('grpMedidas').hidden = f === 'circulo';
   $('hintIrregular').hidden = f !== 'irregular';
   $('grpLuces').hidden = $('luces').value !== 'si';
+  $('grpLaser').hidden = $('laser').value !== 'si';
 }
 
 function leerFormulario() {
@@ -317,8 +340,11 @@ function leerFormulario() {
     d.tipoLuz = $('tipoLuz').value;
   }
 
-  d.corte = aPesos($('corte').value);
-  if (!Number.isFinite(d.corte)) throw new Error('Escribe el costo del corte de la madera y la calca.');
+  d.laser = $('laser').value === 'si';
+  if (d.laser) {
+    d.valorLaser = aPesos($('valorLaser').value);
+    if (!Number.isFinite(d.valorLaser)) throw new Error('Escribe el valor del corte láser.');
+  }
 
   d.horas = aNumero($('horas').value);
   if (!(d.horas >= 0 && d.horas <= 1000)) throw new Error('Escribe las horas de trabajo.');
@@ -378,6 +404,7 @@ async function copiar(texto, btn) {
 
 $('forma').addEventListener('change', actualizarCampos);
 $('luces').addEventListener('change', actualizarCampos);
+$('laser').addEventListener('change', actualizarCampos);
 $('f').addEventListener('submit', e => {
   e.preventDefault();
   $('error').textContent = '';
